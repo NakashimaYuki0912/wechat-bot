@@ -1,0 +1,143 @@
+name: wechat-bot
+
+services:
+  mimicwx:
+    build:
+      context: ..
+      dockerfile: deploy/image/Dockerfile
+    image: wechat-bot-mimicwx:4.1.13.26-a42a3ee
+    container_name: wechat-bot-mimicwx
+    hostname: wechat-bot
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    stop_grace_period: 30s
+
+    # Required by the candidate: fanotify WAL monitoring (SYS_ADMIN) and
+    # gdb attaching to WeChat (SYS_PTRACE). This is a local, trusted container.
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+    shm_size: 512m
+
+    # Loopback-only on the host. Reach them through the SSH tunnel documented
+    # in README. Nothing is exposed on the public interface.
+    ports:
+      - "127.0.0.1:15901:5901"   # raw VNC (optional)
+      - "127.0.0.1:16080:6080"   # noVNC
+      - "127.0.0.1:18899:8899"   # MimicWX REST/WS
+
+    volumes:
+      # Entire WeChat home (login state, Documents/xwechat_files, db_storage,
+      # .xwechat, VNC state, config). Persistent across container rebuilds.
+      - ../data/wechat/home:/home/wechat
+      - ../data/mimicwx/config.toml:/home/wechat/mimicwx-linux/config.toml:ro
+      - ../data/wechat/vnc-password:/run/mimicwx/vnc-password:ro
+      - ../data/wechat/key:/run/mimicwx/key
+      - ../logs/wechat:/var/log/mimicwx
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8899/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+  # Independent DB-cursor ingest. It does not use MimicWX's WebSocket and is
+  # not affected by MimicWX's in-memory watermark. Message rows and cursors are
+  # committed atomically into reliability.db.
+  ingest:
+    image: wechat-bot-mimicwx:4.1.13.26-reliable12
+    container_name: wechat-bot-ingest
+    restart: unless-stopped
+    user: "1000:1000"
+    entrypoint: ["/usr/local/bin/wechat-ingest"]
+    environment:
+      HOME: /home/wechat
+      WECHAT_KEY_FILE: /run/mimicwx/key/wechat_key.txt
+      RELIABILITY_DB: /data/reliability.db
+    depends_on:
+      - mimicwx
+    volumes:
+      # read/write is required by SQLCipher WAL open; PRAGMA query_only=ON
+      # prevents writes. The queue DB is the only writable target.
+      - ../data/wechat/home:/home/wechat
+      - ../data/wechat/key:/run/mimicwx/key:ro
+      - ../data/reliability:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-concurrency SDK worker. It owns model calls only; the model has no
+  # tools (no-tools patch) and cannot choose a send target.
+  agent:
+    image: node:22-bookworm-slim
+    container_name: wechat-bot-agent
+    restart: unless-stopped
+    user: "1000:1000"
+    working_dir: /app
+    command: ["node", "/app/bridge/agent-worker.js"]
+    depends_on:
+      - bridge
+    environment:
+      DSH_HOME: /app/.dsh
+      DSH_RUNTIME: /app/runtime
+      DSH_NO_TOOLS_PATCH: /app/deploy/harness/no-tools.patch.yml
+      DSH_WORKSPACE: /app/work/harness-workspace
+      RELIABILITY_DB: /app/data/reliability/reliability.db
+      AGENT_MAX_TOKENS: "512"
+      AGENT_TIMEOUT_MS: "90000"
+      AGENT_DISPLAY_CHARS: "500"
+      TZ: Asia/Shanghai
+    volumes:
+      - ../runtime:/app/runtime:ro
+      - ../.dsh:/app/.dsh
+      - ../deploy:/app/deploy:ro
+      - ../harness:/app/harness:ro
+      - ../bridge:/app/bridge:ro
+      - ../work/harness-workspace:/app/work/harness-workspace
+      - ../data/reliability:/app/data/reliability
+      - ../data/bridge:/app/data/bridge
+      - ../data/media:/app/data/media
+      - ../data/wechat/home/xwechat_files/${WECHAT_ACCOUNT_DIR}/temp/RWTemp:/app/data/wechat/home/xwechat_files/${WECHAT_ACCOUNT_DIR}/temp/RWTemp:ro
+      - ../data/wechat/home/xwechat_files/${WECHAT_ACCOUNT_DIR}/msg/attach:/app/data/wechat/home/xwechat_files/${WECHAT_ACCOUNT_DIR}/msg/attach:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Phase-1 persistence/dedupe bridge. It shares MimicWX's network namespace,
+  # so it reaches the bridge API on 127.0.0.1 without publishing another port.
+  bridge:
+    image: node:22-alpine
+    container_name: wechat-bot-bridge
+    restart: unless-stopped
+    network_mode: "service:mimicwx"
+    depends_on:
+      - mimicwx
+      - ingest
+    working_dir: /app
+    command: ["node", "/app/bridge/reliable.js", "run"]
+    user: "1000:1000"
+    volumes:
+      - ../bridge:/app/bridge:ro
+      - ../data/bridge:/app/data/bridge
+      - ../data/reliability:/app/data/reliability
+      - ../data/mimicwx/api-token:/app/data/mimicwx/api-token:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

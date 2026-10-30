@@ -1,0 +1,10 @@
+{
+  "name": "wechat-bot-phase1-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js run",
+    "status": "node index.js status",
+    "groups": "node index.js groups"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "api_base": "http://127.0.0.1:8899",
+  "token_file": "data/mimicwx/api-token",
+  "group_id": "123456789@chatroom",
+  "group_name": "Example Group",
+  "poll_interval_ms": 1000,
+  "outbox_max_attempts": 5,
+  "state_keep": 20000,
+  "reliability_db": "data/reliability/reliability.db",
+  "send_timeout_ms": 30000,
+  "account_id": "wxid_example",
+  "bot_display_name": "ExampleBot",
+  "auto_reply_cap": 8,
+  "chat": {
+    "max_tokens": 8192,
+    "display_chars": 2000,
+    "timeout_ms": 90000,
+    "session_max_turns": 40,
+    "max_input_chars": 4000,
+    "reasoning_effort": "high",
+    "persona": {
+      "name": "ExampleBot",
+      "version": "natural-2",
+      "description": "A friendly group chat bot.",
+      "style": [
+        "像群友聊天，不像客服或模板",
+        "日常回答宁可短一点，先把重点说清",
+        "可以适度接梗，也可以在有依据时提出不同意见",
+        "不确定就直说，不装懂",
+        "不必强制 emoji，不每次都反问"
+      ],
+      "aliases": [
+        "ExampleBot"
+      ]
+    },
+    "recent_context_max_messages": 8,
+    "recent_context_max_chars": 1600,
+    "recent_context_lookback_minutes": 180,
+    "memory_retrieval_max_entries": 8,
+    "memory_retrieval_max_chars": 1800,
+    "media_root": "data/media",
+    "image_max_count": 0,
+    "web_search_enabled": true,
+    "tool_patch": "deploy/harness/chat-web.patch.yml",
+    "max_steps": 4,
+    "max_search_calls": 1,
+    "max_fetch_calls": 2,
+    "recent_image_lookback_seconds": 600,
+    "wechat_media_cache_roots": [
+      "data/wechat/home/${WECHAT_ACCOUNT_DIR}/temp/RWTemp",
+      "data/wechat/home/${WECHAT_ACCOUNT_DIR}/msg/attach"
+    ],
+    "image_search_default": false,
+    "web_search_default": true,
+    "auto_image_fetch": false,
+    "media_fetch_timeout_ms": 60000,
+    "image_enabled": false
+  },
+  "summary": {
+    "max_tokens": 16384,
+    "display_chars": 5000,
+    "timeout_ms": 180000,
+    "max_input_messages": 1000,
+    "max_input_chars": 200000,
+    "reasoning_effort": "high",
+    "batch_input_max_messages": 30,
+    "batch_input_max_chars": 18000,
+    "batch_input_max_tokens": 8000,
+    "batch_max_tokens": 16384,
+    "batch_timeout_ms": 120000,
+    "batch_reasoning_effort": "low",
+    "merge_max_tokens": 16384,
+    "merge_max_facts": 8,
+    "merge_max_chars": 30000,
+    "merge_reasoning_effort": "high",
+    "batch_max_split_depth": 2,
+    "batch_concurrency": 2,
+    "merge_concurrency": 2
+  },
+  "model_budget": {
+    "chat": 10,
+    "summary": 5
+  },
+  "acceptance_round": {
+    "id": "acceptance-20261027-1330",
+    "total_limit": 3,
+    "chat_limit": 1,
+    "summary_limit": 2
+  },
+  "limits": {
+    "enforce_auto_reply_cap": false,
+    "enforce_acceptance_round": false,
+    "enforce_model_budget": false
+  },
+  "admins": [],
+  "model_max_concurrency": 4
+}

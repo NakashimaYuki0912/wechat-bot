@@ -1,0 +1,30 @@
+import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import path from "node:path";
+import { ensureWorkerColumns, claimRequest, recoverExpiredClaims } from "../bridge/worker-common.js";
+const ROOT=path.resolve(path.dirname(new URL(import.meta.url).pathname),"..");
+const dir=path.join(ROOT,"work","worker-isolation-test"); fs.mkdirSync(dir,{recursive:true});
+const file=path.join(dir,"t.db"); try{fs.rmSync(file)}catch{}
+const db=new DatabaseSync(file);
+db.exec(`CREATE TABLE agent_requests(request_id TEXT PRIMARY KEY,source_message_id INTEGER,account_id TEXT,group_id TEXT,request_type TEXT,status TEXT,queued_at TEXT,started_at TEXT,finished_at TEXT,error TEXT,cancel_state TEXT,claim_owner TEXT,claim_token TEXT,lease_expires_at INTEGER);`);
+ensureWorkerColumns(db);
+const ins=db.prepare("INSERT INTO agent_requests(request_id,source_message_id,account_id,group_id,request_type,status,queued_at) VALUES(?,?,?,?,?,?,?)");
+ins.run("chat1",1,"a","g","chat","queued","2026-01-01T00:00:00Z");
+ins.run("sum1",2,"a","g","summary","queued","2026-01-01T00:00:01Z");
+const c=claimRequest(db,{kind:"chat",owner:"chat-a",leaseMs:1000});
+if (!c||c.request_id!=="chat1") throw new Error("chat worker claimed wrong request");
+const s=claimRequest(db,{kind:"summary",owner:"sum-a",leaseMs:5000});
+if (!s||s.request_id!=="sum1") throw new Error("summary worker claimed wrong request");
+if (claimRequest(db,{kind:"chat",owner:"chat-b",leaseMs:1000})) throw new Error("chat claimed active summary");
+// While summary is running, a new chat request must still be claimable.
+ins.run("chat2",3,"a","g","chat","queued","2026-01-01T00:00:02Z");
+const c2=claimRequest(db,{kind:"chat",owner:"chat-b",leaseMs:1000});
+if(!c2||c2.request_id!=="chat2") throw new Error("chat was blocked by active summary");
+const changed=recoverExpiredClaims(db,"chat");
+if (changed!==0) throw new Error("chat recovered another worker");
+db.prepare("UPDATE agent_requests SET lease_expires_at=0 WHERE request_id='sum1'").run();
+const changed2=recoverExpiredClaims(db,"summary");
+if (changed2!==1) throw new Error("expired summary not recovered");
+const row=db.prepare("SELECT status,error FROM agent_requests WHERE request_id='sum1'").get();
+if(row.status!=="uncertain") throw new Error("expired claim must be uncertain, not auto-rerun");
+console.log(JSON.stringify({passed:true,chat:c.request_id,chat_while_summary:c2.request_id,summary:s.request_id,expired_recovered:changed2,summary_status:row.status}));

@@ -1,0 +1,13 @@
+.git
+data
+backups
+logs
+runtime
+.dsh
+work
+sources
+config
+*.token
+api-token
+vnc-password
+__pycache__

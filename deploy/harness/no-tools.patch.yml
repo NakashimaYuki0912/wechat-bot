@@ -1,0 +1,62 @@
+# Deny the model every tool that could read, write, execute, search, delegate,
+# or message. This profile is only for a one-question/one-answer text reply;
+# the bridge owns all I/O and fixes the send target.
+- id: tool-plugin-manager
+  disabled: true
+- id: tool-working-directory
+  disabled: true
+- id: tool-bash
+  disabled: true
+- id: tool-pwsh
+  disabled: true
+- id: tool-jobs
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-fs-search
+  disabled: true
+- id: skill
+  disabled: true
+- id: skill-filesystem
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: subagent
+  disabled: true
+- id: subagent-spawn-in-process
+  disabled: true
+- id: subagent-fork-in-process
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: workflow-ptc
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: tool-todo
+  disabled: true
+- id: goal
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: tool-goal
+  disabled: true
+- id: tool-web
+  disabled: true
+
+# The adapter must make exactly one framework-level model request per accepted
+# agent request. Automatic compaction and framework retry are deliberately
+# disabled; any provider-internal retry is outside this claim.
+- id: compaction-basic
+  config:
+    auto: false
+- id: command-compact
+  disabled: true
+- id: llm-retry
+  disabled: true

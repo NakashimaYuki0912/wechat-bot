@@ -1,0 +1,18 @@
+import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs"; import path from "node:path";
+import { ensureModelCapacity, acquireModelSlot, releaseModelSlot } from "../bridge/model-capacity.js";
+const ROOT=path.resolve(path.dirname(new URL(import.meta.url).pathname),".."); const dir=path.join(ROOT,"work","capacity-test"); fs.mkdirSync(dir,{recursive:true});
+const f=path.join(dir,"c.db"); try{fs.rmSync(f)}catch{} const db=new DatabaseSync(f); ensureModelCapacity(db);
+const slots=[];
+for(let i=0;i<3;i++) slots.push(await acquireModelSlot(db,"summary",4));
+let chatDone=false; const chatP=acquireModelSlot(db,"chat",4).then(t=>{chatDone=true;return t});
+await new Promise(r=>setTimeout(r,200));
+if(!chatDone) throw new Error("chat did not get reserved slot");
+const chat=await chatP;
+let fourthSummaryDone=false; const fourth=acquireModelSlot(db,"summary",4).then(t=>{fourthSummaryDone=true;return t});
+await new Promise(r=>setTimeout(r,200));
+if(fourthSummaryDone) throw new Error("summary exceeded reserved slots");
+for(const t of slots) releaseModelSlot(db,t); for(const t of [chat]) releaseModelSlot(db,t);
+const fourthToken=await fourth;
+releaseModelSlot(db,fourthToken);
+console.log(JSON.stringify({passed:true,summary_active:3,chat_reserved:true}));
